@@ -12,12 +12,15 @@ directly from the phone.
 ## What the app does
 
 - Automatically connects to the configured BLE MAC address without scanning.
-- Displays speed and RPM gauges plus odometer, fuel level, throttle position,
-  engine load, keyswitch voltage, VIN, and engine hours when provided by firmware.
+- Displays speed and RPM gauges plus odometer, fuel level, throttle and pedal
+  position, engine load, keyswitch voltage, GPS position (lat/lon), VIN, and
+  engine hours when provided by firmware.
 - Shows engine-running status inferred from RPM, not a confirmed ignition signal.
 - Retries failed connections while the app is visible and offers a Reconnect button.
 - Clears readings on disconnection; missing data is shown as `—`.
-- Does not collect or display GPS data.
+- Displays GPS latitude/longitude from the `g=` metric when the Peko hardware
+  has a GNSS module and a valid fix. No location permission is requested and
+  no position is stored.
 
 Available readings depend on the vehicle, selected firmware protocol, and
 which metrics the firmware actually publishes. This is a demonstration app,
@@ -67,17 +70,22 @@ Edit `app/src/main/java/com/yakiot/peko/AppConstant.kt`:
 
 ```kotlin
 object AppConstant {
-    const val BLE_MAC_ADDRESS = "AA:BB:CC:DD:EE:FF"
+    const val CAN_BLE_MAC_ADDRESS = "AA:BB:CC:DD:EE:FF"
+    const val GPS_BLE_MAC_ADDRESS = "11:22:33:44:55:66"
 }
 ```
 
-Replace only the `BLE_MAC_ADDRESS` value with your board's address; retain
-the other constants in the file. The example is not a usable device address.
-Use six colon-separated hexadecimal pairs. The app normalizes lowercase to
-uppercase before Android validates the address.
+Replace the address values with your boards' addresses; retain the other
+constants in the file. `CAN_BLE_MAC_ADDRESS` is the CAN telemetry device and
+`GPS_BLE_MAC_ADDRESS` is a second ESP32 used for GPS; either may be left blank
+to disable that option on the start screen. Use six colon-separated
+hexadecimal pairs. The app normalizes lowercase to uppercase before Android
+validates the address.
 
-The app does **not** scan for devices by name. You must configure the correct
-BLE address and rebuild/reinstall the app after changing this constant.
+The app does **not** scan for devices by name. On launch it shows a device
+picker with CAN and GPS buttons; tapping one connects directly to the
+configured address. You must configure the correct addresses and
+rebuild/reinstall the app after changing these constants.
 
 ## 4. Run the Android app
 
@@ -111,4 +119,4 @@ when you return. No Bluetooth scan or location permission is requested.
 The app subscribes to service `7e140001-8c55-4a82-b345-51fa952a6a01`, telemetry
 characteristic `7e140002-8c55-4a82-b345-51fa952a6a01`. Notifications are ASCII
 `key=value` messages, including `rpm`, `speed`, `odo`, `fuel`, `thr`, `load`,
-`keyv`, `hours`, and `v` (VIN). Unknown fields are ignored.
+`keyv`, `hours`, `g` (GPS `lat,lon`), and `v` (VIN). Unknown fields are ignored.

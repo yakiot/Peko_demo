@@ -24,46 +24,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var rpm: MeterView
     private val readouts = mutableMapOf<String, TextView>()
     private var foreground = false
+    private var deviceName = ""
+    private var deviceAddress = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24.dp, 24.dp, 24.dp, 24.dp)
-            setBackgroundColor(Color.rgb(246, 248, 247))
-        }
-        fun text(value: String, size: Float = 18f) = TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(Color.rgb(20, 37, 31))
-            setPadding(0, 10.dp, 0, 10.dp)
-        }
-        content.addView(text("ESP32_CAN Dashboard", 26f))
-        status = text("Disconnected", 15f)
-        content.addView(status)
-        content.addView(text(AppConstant.BLE_MAC_ADDRESS.ifBlank { "Set BLE_MAC_ADDRESS in AppConstant.kt" }, 13f))
-        val meters = LinearLayout(this)
-        speed = MeterView(this, "Speed", "km/h", 200f)
-        rpm = MeterView(this, "RPM", "rpm", 8000f)
-        meters.addView(speed, LinearLayout.LayoutParams(0, 210.dp, 1f))
-        meters.addView(rpm, LinearLayout.LayoutParams(0, 210.dp, 1f))
-        content.addView(meters)
-        engine = text("Engine status: —")
-        content.addView(engine)
-        linkedMapOf("odo" to "Odometer (km)", "hours" to "Engine hours (h)",
-            "fuel" to "Fuel level (%)", "thr" to "Throttle / pedal (%)",
-            "load" to "Engine load (%)", "keyv" to "Keyswitch voltage (V)", "v" to "VIN").forEach { (key, label) ->
-            val view = text("$label: —")
-            view.tag = label
-            readouts[key] = view
-            content.addView(view)
-        }
-        content.addView(text("Values appear only when received from firmware. No GPS data is collected.", 13f))
-        content.addView(Button(this).apply {
-            text = "Reconnect"
-            setOnClickListener { ble.stop(); connectIfAllowed() }
-        })
-        setContentView(ScrollView(this).apply { addView(content) })
         ble = CanBleClient(this, { message, connected ->
             status.text = message
             status.setTextColor(if (connected) Color.rgb(27, 139, 101) else Color.rgb(165, 77, 28))
@@ -78,6 +43,86 @@ class MainActivity : AppCompatActivity() {
                 else -> readouts[key]?.let { it.text = "${it.tag}: $value" }
             }
         })
+        showDevicePicker()
+    }
+
+    private fun showDevicePicker() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24.dp, 24.dp, 24.dp, 24.dp)
+            setBackgroundColor(Color.rgb(246, 248, 247))
+        }
+        fun text(value: String, size: Float = 18f) = TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(Color.rgb(20, 37, 31))
+            setPadding(0, 10.dp, 0, 10.dp)
+        }
+        fun deviceButton(name: String, address: String) = Button(this).apply {
+            text = if (address.isBlank()) "$name — address not configured" else name
+            textSize = 18f
+            setOnClickListener { selectDevice(name, address) }
+        }
+        content.addView(text("Peko — Select Device", 26f))
+        content.addView(text("Choose which ESP32 to connect to:", 15f))
+        content.addView(text("CAN: ${AppConstant.CAN_BLE_MAC_ADDRESS.ifBlank { "not configured" }}", 13f))
+        content.addView(deviceButton("CAN", AppConstant.CAN_BLE_MAC_ADDRESS))
+        content.addView(text("GPS: ${AppConstant.GPS_BLE_MAC_ADDRESS.ifBlank { "not configured" }}", 13f))
+        content.addView(deviceButton("GPS", AppConstant.GPS_BLE_MAC_ADDRESS))
+        setContentView(content)
+    }
+
+    private fun selectDevice(name: String, address: String) {
+        deviceName = name
+        deviceAddress = address
+        showDashboard()
+        connectIfAllowed()
+    }
+
+    private fun showDashboard() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24.dp, 24.dp, 24.dp, 24.dp)
+            setBackgroundColor(Color.rgb(246, 248, 247))
+        }
+        fun text(value: String, size: Float = 18f) = TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(Color.rgb(20, 37, 31))
+            setPadding(0, 10.dp, 0, 10.dp)
+        }
+        readouts.clear()
+        content.addView(text("ESP32_CAN Dashboard", 26f))
+        status = text("Disconnected", 15f)
+        content.addView(status)
+        content.addView(text("$deviceName · ${deviceAddress.ifBlank { "Set address in AppConstant.kt" }}", 13f))
+        val meters = LinearLayout(this)
+        speed = MeterView(this, "Speed", "km/h", 200f)
+        rpm = MeterView(this, "RPM", "rpm", 8000f)
+        meters.addView(speed, LinearLayout.LayoutParams(0, 210.dp, 1f))
+        meters.addView(rpm, LinearLayout.LayoutParams(0, 210.dp, 1f))
+        content.addView(meters)
+        engine = text("Engine status: —")
+        content.addView(engine)
+        linkedMapOf("odo" to "Odometer (km)", "hours" to "Engine hours (h)",
+            "fuel" to "Fuel level (%)", "thr" to "Throttle (%)", "pedal" to "Accel pedal (%)",
+            "load" to "Engine load (%)", "keyv" to "Keyswitch voltage (V)",
+            "g" to "Position (lat, lon)", "v" to "VIN").forEach { (key, label) ->
+            val view = text("$label: —")
+            view.tag = label
+            readouts[key] = view
+            content.addView(view)
+        }
+        content.addView(text("Values appear only when received from firmware. GPS position is shown only while the module reports a valid fix.", 13f))
+        content.addView(Button(this).apply {
+            text = "Reconnect"
+            setOnClickListener { ble.stop(); connectIfAllowed() }
+        })
+        content.addView(Button(this).apply {
+            text = "Change device"
+            setOnClickListener { ble.stop(); showDevicePicker() }
+        })
+        setContentView(ScrollView(this).apply { addView(content) })
     }
 
     private fun clearTelemetry() {
@@ -94,10 +139,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectIfAllowed() {
+        if (deviceAddress.isBlank()) return
         if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 1)
         } else {
-            ble.start()
+            ble.start(deviceAddress)
         }
     }
 
@@ -105,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != 1) return
         if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            if (foreground) ble.start()
+            if (foreground && deviceAddress.isNotBlank()) ble.start(deviceAddress)
         } else {
             status.text = "Bluetooth permission denied. Grant Nearby devices access to connect."
         }

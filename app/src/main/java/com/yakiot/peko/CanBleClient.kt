@@ -24,12 +24,14 @@ class CanBleClient(context: Context, private val onStatus: (String, Boolean) -> 
     private val cccdId = UUID.fromString(AppConstant.CCCD_UUID)
     private var gatt: BluetoothGatt? = null
     private var active = false
+    private var address = "" 
     private val retry = Runnable { connect() }
     private val timeout = Runnable { fail("Connection timed out; retrying…") }
 
-    fun start() {
-        if (active) return
+    fun start(deviceAddress: String) {
+        if (active && address == deviceAddress) return
         active = true
+        address = deviceAddress
         connect()
     }
 
@@ -61,12 +63,12 @@ class CanBleClient(context: Context, private val onStatus: (String, Boolean) -> 
 
     private fun connect() {
         if (!active) return
-        val address = AppConstant.BLE_MAC_ADDRESS.trim().uppercase(java.util.Locale.ROOT)
-        if (address.isEmpty()) {
+        val normalized = address.trim().uppercase(java.util.Locale.ROOT)
+        if (normalized.isEmpty()) {
             onStatus("BLE address not configured in AppConstant", false)
             return
         }
-        if (!android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)) {
+        if (!android.bluetooth.BluetoothAdapter.checkBluetoothAddress(normalized)) {
             onStatus("Invalid BLE address in AppConstant", false)
             return
         }
@@ -76,8 +78,8 @@ class CanBleClient(context: Context, private val onStatus: (String, Boolean) -> 
                 fail("Enable Bluetooth; retrying…")
                 return
             }
-            onStatus("Connecting to $address…", false)
-            gatt = adapter.getRemoteDevice(address).connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
+            onStatus("Connecting to $normalized…", false)
+            gatt = adapter.getRemoteDevice(normalized).connectGatt(context, false, callback, BluetoothDevice.TRANSPORT_LE)
             if (gatt == null) fail("Cannot connect; retrying…")
             else handler.postDelayed(timeout, AppConstant.CONNECTION_TIMEOUT_MS)
         } catch (_: SecurityException) {
@@ -151,7 +153,15 @@ class CanBleClient(context: Context, private val onStatus: (String, Boolean) -> 
                 if (raw.matches(Regex("[A-HJ-NPR-Z0-9]{17}"))) onMetric(key, raw)
                 return@post
             }
-            if (key !in setOf("rpm", "speed", "odo", "fuel", "thr", "load", "keyv", "hours")) return@post
+            if (key == "g") {
+                val parts = raw.split(',')
+                val valid = parts.size == 2 && parts.all {
+                    it.toFloatOrNull()?.let(Float::isFinite) == true
+                }
+                if (valid) onMetric(key, raw)
+                return@post
+            }
+            if (key !in setOf("rpm", "speed", "odo", "fuel", "thr", "pedal", "load", "keyv", "hours")) return@post
             val value = raw.toFloatOrNull()?.takeIf { it.isFinite() && it >= 0 } ?: return@post
             if (key in setOf("fuel", "thr", "load") && value > 100) return@post
             onMetric(key, raw)

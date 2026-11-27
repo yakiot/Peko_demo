@@ -1,8 +1,10 @@
 package com.yakiot.peko
 
 object AppConstant {
-    // BLE address: d8:13:2a:39:f3:4a
-    const val BLE_MAC_ADDRESS = "d8:13:2a:39:f3:4a"
+    // CAN telemetry ESP32 BLE address
+    const val CAN_BLE_MAC_ADDRESS = "d8:13:2a:39:f3:4a"
+    // GPS ESP32 BLE address
+    const val GPS_BLE_MAC_ADDRESS = "d8:13:2a:2e:06:1e"
     const val SERVICE_UUID = "7e140001-8c55-4a82-b345-51fa952a6a01"
     const val TELEMETRY_UUID = "7e140002-8c55-4a82-b345-51fa952a6a01"
     const val CCCD_UUID = "00002902-0000-1000-8000-00805f9b34fb"
